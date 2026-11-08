@@ -1,0 +1,12 @@
+# Changelog
+
+## 0.2.0
+
+- e-roi Trigger: the signature covers the delivery timestamp (`<X-Eroi-Timestamp>.<raw body>`) and deliveries older than 5 minutes are refused; a subscription turned off by e-roi is turned back on when the workflow is activated again.
+- e-roi node: deals can be updated (title, value, owner, contact, source, expected close date, custom fields); Move to Stage sends the fields the stage requires; Marketing Emails can record the consent or the unsubscribe.
+- API keys start with `eroi_` (older `rvs_` keys keep working).
+
+## 0.1.0
+
+- e-roi Trigger: contact created and updated, deal created, stage changed, won and lost, form submitted, conversation started, message received, online store sale, task created (REST hook with signed deliveries).
+- e-roi node: contacts (create or update, update, get, find, add tag, add to list, enroll in cadence, add note), deals (create, move to stage, mark as won or lost, find, add tag, add note) and tasks (create).

@@ -1,0 +1,18 @@
+{
+	"node": "n8n-nodes-eroi.eroiTrigger",
+	"nodeVersion": "1.0",
+	"codexVersion": "1.0",
+	"categories": ["Sales", "Marketing", "Communication"],
+	"resources": {
+		"credentialDocumentation": [
+			{
+				"url": "https://github.com/e-roi/n8n-nodes-eroi?tab=readme-ov-file#credentials"
+			}
+		],
+		"primaryDocumentation": [
+			{
+				"url": "https://github.com/e-roi/n8n-nodes-eroi?tab=readme-ov-file"
+			}
+		]
+	}
+}

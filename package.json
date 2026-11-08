@@ -1,0 +1,56 @@
+{
+	"name": "n8n-nodes-eroi",
+	"version": "0.2.0",
+	"description": "n8n nodes for e-roi: triggers and actions for the CRM, the inbox, lead forms and online store sales.",
+	"license": "MIT",
+	"homepage": "https://eroimkt.com.br",
+	"keywords": [
+		"n8n-community-node-package",
+		"e-roi",
+		"crm",
+		"marketing",
+		"sales"
+	],
+	"author": {
+		"name": "BS Tecnologia LTDA",
+		"email": "suporte@eroimkt.com.br"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/e-roi/n8n-nodes-eroi.git"
+	},
+	"scripts": {
+		"build": "n8n-node build",
+		"build:watch": "tsc --watch",
+		"dev": "n8n-node dev",
+		"lint": "n8n-node lint",
+		"lint:fix": "n8n-node lint --fix",
+		"release": "n8n-node release",
+		"prepublishOnly": "n8n-node prerelease",
+		"test": "tsc -p tsconfig.test.json && node --test \"dist-teste/teste/**/*.test.js\""
+	},
+	"files": [
+		"dist"
+	],
+	"n8n": {
+		"n8nNodesApiVersion": 1,
+		"strict": true,
+		"credentials": [
+			"dist/credentials/EroiApi.credentials.js"
+		],
+		"nodes": [
+			"dist/nodes/Eroi/Eroi.node.js",
+			"dist/nodes/EroiTrigger/EroiTrigger.node.js"
+		]
+	},
+	"devDependencies": {
+		"@n8n/node-cli": "0.55.5",
+		"eslint": "9.39.4",
+		"prettier": "3.8.3",
+		"release-it": "20.2.0",
+		"typescript": "5.9.3"
+	},
+	"peerDependencies": {
+		"n8n-workflow": "*"
+	}
+}
