@@ -69,10 +69,10 @@ Each delivery has up to 3 attempts in total (waits of 2 s and 4 s, 10 s timeout 
 
 ## Reading
 
-- `GET /contacts?desde=YYYY-MM-DD&limit=&page=`: contacts, newest first (`desde`: created on or after the day).
+- `GET /contacts?desde=YYYY-MM-DD&limit=&page=`: contacts, newest first (`desde`: created on or after the day, in the company's time zone, Brasília, UTC-3).
 - `GET /contacts/:id`.
 - `GET /search/contacts?email=&phone=` returns `[]` or `[contact]` (phone in any format).
-- `GET /opportunities?status=&pipeline_id=&desde=&limit=&page=`: deals, newest first, without merged and archived deals. `status`: `open`, `won`, `lost`, `any` or one of `new`, `contacted`, `qualified`, `proposal_sent`, `negotiating`.
+- `GET /opportunities?status=&pipeline_id=&desde=&limit=&page=`: deals, newest first, without merged and archived deals (`desde`: created on or after the day, in the company's time zone, Brasília, UTC-3). `status`: `open`, `won`, `lost`, `any` or one of `new`, `contacted`, `qualified`, `proposal_sent`, `negotiating`.
 - `GET /opportunities/:id`.
 - `GET /search/opportunities?title=&contact_id=&email=&phone=&status=open|won|lost|any&pipeline_id=&limit=&page=` returns deals, newest first.
 
