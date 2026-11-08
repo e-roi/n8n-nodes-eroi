@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.2
+
+- e-roi node: Expected Close Date keeps the day as written (a late-evening date and time no longer becomes the next day).
+- e-roi node: Task Due At without an offset is read in the workflow time zone, not in the clock of the server running n8n.
+- docs/API.md updated with the date formats, `due_at` with the time zone, date custom fields and `GET /events`.
+
 ## 0.2.0
 
 - e-roi Trigger: the signature covers the delivery timestamp (`<X-Eroi-Timestamp>.<raw body>`) and deliveries older than 5 minutes are refused; a subscription turned off by e-roi is turned back on when the workflow is activated again.

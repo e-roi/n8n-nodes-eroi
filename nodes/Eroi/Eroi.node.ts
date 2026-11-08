@@ -21,7 +21,7 @@ import {
 	taskFields,
 	taskOperations,
 } from './descriptions';
-import { compact, customFieldsToObject, dateOnly, marketingOptIn, stageName, tagBody } from './helpers';
+import { compact, customFieldsToObject, dateOnly, dateTimeInZone, marketingOptIn, stageName, tagBody } from './helpers';
 
 const id = (value: unknown) => encodeURIComponent(String(value ?? '').trim());
 
@@ -206,9 +206,9 @@ async function run(this: IExecuteFunctions, resource: string, operation: string,
 
 	if (resource === 'task' && operation === 'create') {
 		const extra = p('additionalFields', {}) as IDataObject;
-		const due = new Date(String(p('dueAt')));
-		if (Number.isNaN(due.getTime())) throw new NodeOperationError(this.getNode(), 'Due At is not a valid date', { itemIndex: i });
-		return eroiApiRequest.call(this, 'POST', '/tasks', <IDataObject>compact({ opportunity_id: p('dealId'), title: p('title'), due_at: due.toISOString(), ...extra }));
+		const due = dateTimeInZone(p('dueAt'), this.getTimezone());
+		if (!due) throw new NodeOperationError(this.getNode(), 'Due At is not a valid date', { itemIndex: i });
+		return eroiApiRequest.call(this, 'POST', '/tasks', <IDataObject>compact({ opportunity_id: p('dealId'), title: p('title'), due_at: due, ...extra }));
 	}
 
 	throw new NodeOperationError(this.getNode(), `The operation "${operation}" is not supported for "${resource}"`, { itemIndex: i });

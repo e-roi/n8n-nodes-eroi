@@ -37,13 +37,66 @@ export function tagBody(value: unknown): { tag_id: string } | { tag_name: string
 	return UUID.test(text) ? { tag_id: text } : { tag_name: text };
 }
 
-/** Date-only string (YYYY-MM-DD) from what n8n sends (date or date-time). */
+/**
+ * Date-only string (YYYY-MM-DD) from what n8n sends (date or date-time). A date
+ * and time keeps the day as written: converting to UTC first turned a late
+ * evening into the next day.
+ */
 export function dateOnly(value: unknown): string | undefined {
 	if (value === undefined || value === null || value === '') return undefined;
 	const text = String(value).trim();
 	if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+	const written = /^(\d{4}-\d{2}-\d{2})[T ]\d{2}:\d{2}/.exec(text);
+	if (written) return written[1];
 	const date = new Date(text);
 	return Number.isNaN(date.getTime()) ? text : date.toISOString().slice(0, 10);
+}
+
+const LOCAL_DATE_TIME = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?$/;
+
+/** Minutes the time zone is ahead of UTC at that instant. */
+function zoneOffsetMinutes(utcMs: number, timeZone: string): number {
+	const parts: Record<string, number> = {};
+	const format = new Intl.DateTimeFormat('en-US', {
+		timeZone,
+		hourCycle: 'h23',
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit',
+		hour: '2-digit',
+		minute: '2-digit',
+		second: '2-digit',
+	});
+	for (const part of format.formatToParts(new Date(utcMs))) {
+		if (part.type !== 'literal') parts[part.type] = Number(part.value);
+	}
+	const asUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
+	return Math.round((asUtc - Math.floor(utcMs / 1000) * 1000) / 60000);
+}
+
+/**
+ * Date and time as ISO 8601 (UTC). With an offset (or Z) the instant is kept;
+ * without one it is read in the workflow time zone, not in the clock of the
+ * server running n8n (UTC on n8n Cloud, which moved the task 3 hours).
+ */
+export function dateTimeInZone(value: unknown, timeZone: string): string | undefined {
+	const text = String(value ?? '').trim();
+	if (!text) return undefined;
+	const local = LOCAL_DATE_TIME.exec(text);
+	if (local && timeZone) {
+		const [, y, mo, d, h, mi, s] = local;
+		const guess = Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), Number(s ?? 0));
+		try {
+			let utc = guess - zoneOffsetMinutes(guess, timeZone) * 60000;
+			const again = guess - zoneOffsetMinutes(utc, timeZone) * 60000;
+			if (again !== utc) utc = again;
+			return new Date(utc).toISOString();
+		} catch {
+			// Unknown time zone: fall through to the plain reading below.
+		}
+	}
+	const date = new Date(text);
+	return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
 }
 
 /** Stage option name: with the pipeline when no pipeline was chosen. */

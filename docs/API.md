@@ -4,7 +4,7 @@ Reference of the API used by the e-roi apps for Zapier, Make and n8n (and by any
 
 - Base URL: `https://api.eroimkt.com.br/v1/api/v1` (the first `v1` is the platform prefix; the second one is the version of the integration API).
 - Authentication: `Authorization: Bearer eroi_...` (an API key created by an e-roi Administrator in **Configurações › Integrações › API e webhooks**). Keys created before November 2026 start with `rvs_` and keep working.
-- Format: JSON in and out. Money is in BRL, in reais (`value`, number with two decimals); inputs also accept Brazilian text such as `"1.500,50"`. Dates are ISO 8601; date-only fields use `YYYY-MM-DD`.
+- Format: JSON in and out. Money is in BRL, in reais (`value`, number with two decimals); inputs also accept Brazilian text such as `"1.500,50"` or `"1.500"` (and the US text `"1,500.50"`). Dates are ISO 8601; date-only fields use `YYYY-MM-DD`. Date-times come out in UTC as PostgreSQL writes them, such as `2026-01-10T12:00:00.123456+00:00` (the fraction of a second has 0 to 6 digits and is left out on a whole second).
 - Limits: 120 requests per minute per key (HTTP 429 with `Retry-After` above it). 30 invalid keys in 10 minutes from the same address get HTTP 429 `too_many_invalid_keys`.
 - Errors: HTTP status plus `{ "message": "...", "request_id": "..." }` in Portuguese, written for developers (unknown fields are named, e.g. `O campo notas não existe nesta rota`). The key errors carry an `error` code: `api_key_required`, `invalid_api_key`, `api_key_expired`, `tenant_inactive`, `api_not_in_plan`, `access_blocked`, `ip_not_allowed`, `insufficient_api_scope`, `too_many_invalid_keys`.
 - Plan: the integration API is part of the Scale and Enterprise plans.
@@ -26,7 +26,7 @@ A key can also have an expiry date and a list of allowed IP addresses (set in th
 
 ## Connection
 
-`GET /me` returns `{ company: { id, name }, key: { name, prefix, scopes }, events: [...] }`.
+`GET /me` returns `{ company: { id, name }, key: { name, prefix, scopes }, events: [...] }`. `GET /events` returns the trigger catalog: `[{ key, label, scope }]`.
 
 ## Pagination
 
@@ -83,20 +83,22 @@ Contacts and deals have the same shape in every route, in the webhook and in the
 | Method and path | Body |
 |---|---|
 | `POST /contacts` | `email` and/or `phone` (required), `name`, `company`, `source`, `lifecycle_stage`, `owner_id`, `marketing_opt_in`, `notes`, `custom_fields`. Creates the contact with the CRM rules (201). When a contact with the same email or phone exists, returns it unchanged with `created: false` (200). |
-| `POST /contacts/upsert` | `email` and/or `phone` (required, used to find the contact), `name`, `company`, `source`, `lifecycle_stage` (`lead`, `customer`, `churned`), `owner_id`, `marketing_opt_in`, `notes`, `custom_fields` |
+| `POST /contacts/upsert` | `email` and/or `phone` (required, used to find the contact), `name`, `company`, `source`, `lifecycle_stage` (`lead`, `customer`, `churned`), `owner_id`, `marketing_opt_in`, `notes`, `custom_fields`. Found: only the filled fields change; the email and phone the contact already has stay, and the one it did not have yet is added (unless it belongs to another contact). |
 | `PATCH /contacts/:id` | the same fields; blank fields are left as they are; `notes` is added to the contact notes (newest on top); the phone is stored in the canonical form; an email or phone of another contact is refused (409) |
 | `POST /contacts/:id/tags` | `tag_id` or `tag_name` (created when missing) |
 | `POST /contacts/:id/lists` | `list_id` (static lists) |
 | `POST /contacts/:id/cadences` | `cadence_id` |
 | `POST /contacts/:id/notes` | `text` |
-| `POST /opportunities` | `title`, `contact_id` or `contact: { name, email, phone, company }`, `pipeline_id`, `stage_id`, `value`, `owner_id`, `source`, `expected_close_date` (YYYY-MM-DD), `custom_fields`. With `pipeline_id` and no `stage_id`, the deal starts in the first stage of that pipeline; a `stage_id` of another pipeline is refused. |
+| `POST /opportunities` | `title`, `contact_id` or `contact: { name, email, phone, company }`, `pipeline_id`, `stage_id`, `value`, `owner_id`, `source`, `expected_close_date` (YYYY-MM-DD), `custom_fields`. With `pipeline_id` and no `stage_id`, the deal starts in the first stage of that pipeline; a `stage_id` of another pipeline is refused. With `contact`, the contact is found (by email or phone) or created: a found contact only gets what it did not have (email, phone, company); its name, company and source stay. |
 | `PATCH /opportunities/:id` | `title`, `value`, `owner_id`, `contact_id`, `source`, `expected_close_date`, `custom_fields` (merged with the current ones); blank fields are left as they are. The stage changes only through `/stage`. |
 | `POST /opportunities/:id/stage` | `stage_id`, `lost_reason_id` (lost stage), `value` (closed value, won stage), and the fields the stage requires: `estimated_value`, `expected_close_date`, `owner_id`, `custom_fields` |
 | `POST /opportunities/:id/won` | `value` |
 | `POST /opportunities/:id/lost` | `lost_reason_id` |
 | `POST /opportunities/:id/tags` | `tag_id` or `tag_name` |
 | `POST /opportunities/:id/notes` | `text` |
-| `POST /tasks` | `opportunity_id`, `title`, `due_at`, `type` (`task`, `call`, `email`, `meeting`), `description`, `owner_id` |
+| `POST /tasks` | `opportunity_id`, `title`, `due_at` (ISO 8601 date-time, with `Z` or an offset; without the offset, Brasília time; a date without the time is refused with 400), `type` (`task`, `call`, `email`, `meeting`), `description`, `owner_id` |
+
+`custom_fields` is an object keyed by the field `key` (see `GET /custom-fields`). A field of type `date` keeps the day as `YYYY-MM-DD`; it also accepts an ISO 8601 date-time (what the date pickers of Make, Zapier and n8n send) and stores the day of that moment in the company time zone (default `America/Sao_Paulo`). A date-time without an offset keeps the day as written.
 
 `marketing_opt_in`: `true` records the email marketing consent and `false` records the unsubscribe (it stops marketing emails, automations and cadences by email), both in the contact consent trail with the source "API". Leave it out when you do not know.
 
