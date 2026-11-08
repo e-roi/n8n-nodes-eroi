@@ -95,7 +95,8 @@ export class EroiTrigger implements INodeType {
 				if (data.webhookId) {
 					try {
 						await eroiApiRequest.call(this, 'DELETE', `/hooks/${encodeURIComponent(String(data.webhookId))}`);
-					} catch {
+					} catch (error) {
+						this.logger.warn(`e-roi: could not remove the webhook subscription ${String(data.webhookId)}: ${(error as Error).message}`);
 						return false;
 					}
 				}

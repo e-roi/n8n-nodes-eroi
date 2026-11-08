@@ -1,7 +1,9 @@
 import {
 	NodeConnectionTypes,
+	NodeApiError,
 	NodeOperationError,
 	type IDataObject,
+	type JsonObject,
 	type IExecuteFunctions,
 	type ILoadOptionsFunctions,
 	type INodeExecutionData,
@@ -96,7 +98,7 @@ export class Eroi implements INodeType {
 					output.push({ json: { error: (error as Error).message }, pairedItem: { item: i } });
 					continue;
 				}
-				throw error;
+				throw new NodeApiError(this.getNode(), error as JsonObject, { message: (error as Error).message, itemIndex: i });
 			}
 		}
 		return [output];

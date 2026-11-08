@@ -9,7 +9,7 @@ import type {
 export class EroiApi implements ICredentialType {
 	name = 'eroiApi';
 
-	displayName = 'e-roi API';
+	displayName = 'E-Roi API';
 
 	icon: Icon = { light: 'file:../icons/eroi.svg', dark: 'file:../icons/eroi.dark.svg' };
 

@@ -28,7 +28,7 @@ export const contactOperations: INodeProperties = {
 		{ name: 'Add Note', value: 'addNote', action: 'Add a note to a contact', description: 'Add a note to the contact notes, newest on top' },
 		{ name: 'Add Tag', value: 'addTag', action: 'Add a tag to a contact', description: 'Add a CRM tag to a contact' },
 		{ name: 'Add to List', value: 'addToList', action: 'Add a contact to a list', description: 'Add a contact to a static list used by email campaigns' },
-		{ name: 'Create or Update', value: 'upsert', action: 'Create or update a contact', description: 'Create a contact, or update it when the email or phone already exists' },
+		{ name: 'Create or Update', value: 'upsert', action: 'Create or update a contact', description: 'Create a new record, or update the current one if it already exists (upsert)' },
 		{ name: 'Enroll in Cadence', value: 'enroll', action: 'Enroll a contact in a cadence', description: 'Put a contact in a sales cadence' },
 		{ name: 'Find', value: 'find', action: 'Find a contact', description: 'Find a contact by email or phone' },
 		{ name: 'Get', value: 'get', action: 'Get a contact', description: 'Get a contact by ID' },
