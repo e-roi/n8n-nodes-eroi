@@ -69,10 +69,10 @@ Each delivery has up to 3 attempts in total (waits of 2 s and 4 s, 10 s timeout 
 
 ## Reading
 
-- `GET /contacts?desde=YYYY-MM-DD&limit=&page=`: contacts, newest first (`desde`: created on or after the day, in the company's time zone, Brasília, UTC-3).
+- `GET /contacts?desde=YYYY-MM-DD&limit=&page=`: contacts, newest first (`desde`: created on or after that day, in Brasília time, UTC-3).
 - `GET /contacts/:id`.
 - `GET /search/contacts?email=&phone=` returns `[]` or `[contact]` (phone in any format).
-- `GET /opportunities?status=&pipeline_id=&desde=&limit=&page=`: deals, newest first, without merged and archived deals (`desde`: created on or after the day, in the company's time zone, Brasília, UTC-3). `status`: `open`, `won`, `lost`, `any` or one of `new`, `contacted`, `qualified`, `proposal_sent`, `negotiating`.
+- `GET /opportunities?status=&pipeline_id=&desde=&limit=&page=`: deals, newest first, without merged and archived deals (`desde`: created on or after that day, in Brasília time, UTC-3). `status`: `open`, `won`, `lost`, `any` or one of `new`, `contacted`, `qualified`, `proposal_sent`, `negotiating`.
 - `GET /opportunities/:id`.
 - `GET /search/opportunities?title=&contact_id=&email=&phone=&status=open|won|lost|any&pipeline_id=&limit=&page=` returns deals, newest first.
 
@@ -98,7 +98,7 @@ Contacts and deals have the same shape in every route, in the webhook and in the
 | `POST /opportunities/:id/notes` | `text` |
 | `POST /tasks` | `opportunity_id`, `title`, `due_at` (ISO 8601 date-time, with `Z` or an offset; without the offset, Brasília time; a date without the time is refused with 400), `type` (`task`, `call`, `email`, `meeting`), `description`, `owner_id` |
 
-`custom_fields` is an object keyed by the field `key` (see `GET /custom-fields`). A field of type `date` keeps the day as `YYYY-MM-DD`; it also accepts an ISO 8601 date-time (what the date pickers of Make, Zapier and n8n send) and stores the day of that moment in the company time zone (default `America/Sao_Paulo`). A date-time without an offset keeps the day as written.
+`custom_fields` is an object keyed by the field `key` (see `GET /custom-fields`). A field of type `date` keeps the day as `YYYY-MM-DD`; it also accepts an ISO 8601 date-time (what the date pickers of Make, Zapier and n8n send) and stores the day of that moment in Brasília time (`America/Sao_Paulo`; e-roi has no per-company time zone). A date-time without an offset keeps the day as written.
 
 `marketing_opt_in`: `true` records the email marketing consent and `false` records the unsubscribe (it stops marketing emails, automations and cadences by email), both in the contact consent trail with the source "API". Leave it out when you do not know.
 
