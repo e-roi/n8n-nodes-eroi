@@ -1,4 +1,5 @@
 import {
+	NodeApiError,
 	NodeConnectionTypes,
 	type IDataObject,
 	type IHookFunctions,
@@ -6,9 +7,20 @@ import {
 	type INodeTypeDescription,
 	type IWebhookFunctions,
 	type IWebhookResponseData,
+	type JsonObject,
 } from 'n8n-workflow';
 import { eroiApiRequest } from '../Eroi/GenericFunctions';
 import { EVENTS, signatureIsValid, webhookItem } from '../Eroi/helpers';
+
+/** True only when e-roi answered 404: the subscription does not exist (any more). */
+function isNotFound(error: unknown): boolean {
+	return String((error as { httpCode?: unknown } | null)?.httpCode ?? '') === '404';
+}
+
+/** The error as n8n shows it to the user; errors from the e-roi API already come as NodeApiError. */
+function asNodeApiError(context: IHookFunctions, error: unknown): NodeApiError {
+	return error instanceof NodeApiError ? error : new NodeApiError(context.getNode(), error as JsonObject);
+}
 
 /**
  * Subscribes the workflow webhook URL on e-roi for one event (REST hook) when
@@ -56,27 +68,38 @@ export class EroiTrigger implements INodeType {
 			async checkExists(this: IHookFunctions): Promise<boolean> {
 				const data = this.getWorkflowStaticData('node');
 				if (!data.webhookId) return false;
+				const id = String(data.webhookId);
+				const path = `/hooks/${encodeURIComponent(id)}`;
+				let hook: { url?: string; event?: string; is_active?: boolean };
 				try {
-					const hook = (await eroiApiRequest.call(this, 'GET', `/hooks/${encodeURIComponent(String(data.webhookId))}`)) as {
-						url?: string;
-						event?: string;
-						is_active?: boolean;
-					};
-					const same = hook.url === this.getNodeWebhookUrl('default') && hook.event === this.getNodeParameter('event');
-					if (!same) {
+					hook = await eroiApiRequest.call(this, 'GET', path);
+				} catch (error) {
+					// Only a 404 means the subscription no longer exists in e-roi. On any other failure (invalid
+					// API key, network error, 5xx) the id and the secret are kept and the error is shown, so n8n
+					// does not create a second subscription while the first one is still active.
+					if (isNotFound(error)) {
 						delete data.webhookId;
 						delete data.secret;
 						return false;
 					}
-					if (hook.is_active === false) {
-						await eroiApiRequest.call(this, 'POST', `/hooks/${encodeURIComponent(String(data.webhookId))}/reactivate`);
-					}
-					return true;
-				} catch {
+					this.logger.error(`e-roi: could not check the webhook subscription ${id}: ${(error as Error).message}`);
+					throw asNodeApiError(this, error);
+				}
+				const same = hook.url === this.getNodeWebhookUrl('default') && hook.event === this.getNodeParameter('event');
+				if (!same) {
 					delete data.webhookId;
 					delete data.secret;
 					return false;
 				}
+				if (hook.is_active === false) {
+					try {
+						await eroiApiRequest.call(this, 'POST', `${path}/reactivate`);
+					} catch (error) {
+						this.logger.error(`e-roi: could not turn the webhook subscription ${id} back on: ${(error as Error).message}`);
+						throw asNodeApiError(this, error);
+					}
+				}
+				return true;
 			},
 			async create(this: IHookFunctions): Promise<boolean> {
 				const created = (await eroiApiRequest.call(this, 'POST', '/hooks', {

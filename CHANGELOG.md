@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.3
+
+- e-roi Trigger: when the workflow is activated, only a 404 from e-roi is read as "the subscription no longer exists". Any other failure (invalid API key, network error, 5xx, a subscription that could not be turned back on) is logged and shown to the user, and the subscription id and its secret are kept, so a second subscription is no longer created while the first one is still active.
+
 ## 0.2.2
 
 - e-roi node: Expected Close Date keeps the day as written (a late-evening date and time no longer becomes the next day).
