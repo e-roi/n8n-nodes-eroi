@@ -69,16 +69,39 @@ Each delivery has up to 3 attempts in total (waits of 2 s and 4 s, 10 s timeout 
 
 ## Reading
 
-- `GET /contacts?desde=YYYY-MM-DD&limit=&page=`: contacts, newest first (`desde`: created on or after that day, in Brasília time, UTC-3).
+- `GET /contacts?desde=YYYY-MM-DD&updated_since=&limit=&page=`: contacts, newest first (`desde`: created on or after that day, in Brasília time, UTC-3).
 - `GET /contacts/:id`.
 - `GET /search/contacts?email=&phone=` returns `[]` or `[contact]` (phone in any format).
-- `GET /opportunities?status=&pipeline_id=&desde=&limit=&page=`: deals, newest first, without merged and archived deals (`desde`: created on or after that day, in Brasília time, UTC-3). `status`: `open`, `won`, `lost`, `any` or one of `new`, `contacted`, `qualified`, `proposal_sent`, `negotiating`.
+- `GET /opportunities?status=&pipeline_id=&desde=&updated_since=&limit=&page=`: deals, newest first, without merged and archived deals (`desde`: created on or after that day, in Brasília time, UTC-3). `status`: `open`, `won`, `lost`, `any` or one of `new`, `contacted`, `qualified`, `proposal_sent`, `negotiating`.
 - `GET /opportunities/:id`.
 - `GET /search/opportunities?title=&contact_id=&email=&phone=&status=open|won|lost|any&pipeline_id=&limit=&page=` returns deals, newest first.
 
 Contacts and deals have the same shape in every route, in the webhook and in the polling list: values in reais (`value`, `estimated_value`, `actual_value`), `email`/`phone`, CRM tags (`tags`: tag names) and the owner (`owner_id`, `owner_name`).
 
+### Keeping a copy in sync (`updated_since`)
+
+`desde` answers "what was created on this day", which is not enough to keep a copy up to date: a webhook delivery that fails leaves that record wrong for good. `updated_since` on `GET /contacts` and `GET /opportunities` answers "what CHANGED since this moment", so a scheduled job can reconcile whatever the webhooks missed.
+
+It takes a day (`2026-11-24`, from the start of that day in Brasília) or an ISO 8601 instant (`2026-11-24T14:30:00-03:00`). Without a written offset the time is read as Brasília time, like `due_at` on a task. With this filter on, the list is ordered by the change, which is the order the sync reads.
+
+A reconciliation pass usually looks like this: store the moment you started, ask for `updated_since=<the moment you stored last time>`, walk the pages, then store the new moment. Overlap by a few minutes to be safe; the records you see twice are the same ones, so applying them again changes nothing.
+
 ## Actions
+
+### Safe retries (`Idempotency-Key`)
+
+Every write route accepts an `Idempotency-Key` header: 8 to 100 characters of letters, digits, hyphen, underscore, dot or colon, one per operation you mean to perform (not one per attempt). Send the same key again and e-roi returns the **stored response** without doing the work twice, so a retry after a timeout cannot create a second deal, a second task or a second note.
+
+The header is optional, so an integration built before this existed keeps working unchanged. Use it anywhere a retry is possible, which in practice is everywhere.
+
+- Same key, same request: the first response, with its original status.
+- Same key, a different request (or a different route): `409 idempotency_key_reused`. A key belongs to one operation.
+- Same key while the first call is still running: `409 idempotency_in_progress`. Try again shortly.
+- A request error (4xx) is stored too, so the retry gets the same error instead of a surprise.
+- An e-roi error (5xx) is **not** stored, so you can retry the same key safely.
+- Keys are kept for 30 days, then released.
+
+The loyalty routes have had this since November 11 and require the key; here it is optional. The key can also travel as `idempotency_key` in the body when a header is inconvenient, and it is never counted as part of the request itself.
 
 | Method and path | Body |
 |---|---|
