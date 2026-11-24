@@ -30,7 +30,7 @@ A key can also have an expiry date and a list of allowed IP addresses (set in th
 
 ## Pagination
 
-`GET /contacts`, `GET /opportunities`, `GET /search/opportunities` and `GET /triggers/:event` accept `page` (from 1) together with `limit`. The body is always a JSON array; the page goes in the headers `X-Page`, `X-Per-Page` and, when there is a next page, `X-Next-Page`. Without `page`, the first page is returned. Defaults: `GET /contacts` and `GET /opportunities` 50 (up to 200), `GET /triggers/:event` 25 (up to 100), `GET /search/opportunities` 10 (up to 100). The dropdown lists and `GET /hooks` come whole.
+`GET /contacts` and `GET /opportunities` also accept `cursor`, which is what you want for walking a base that changes while you read it (see below). `GET /contacts`, `GET /opportunities`, `GET /search/opportunities` and `GET /triggers/:event` accept `page` (from 1) together with `limit`. The body is always a JSON array; the page goes in the headers `X-Page`, `X-Per-Page` and, when there is a next page, `X-Next-Page`. Without `page`, the first page is returned. Defaults: `GET /contacts` and `GET /opportunities` 50 (up to 200), `GET /triggers/:event` 25 (up to 100), `GET /search/opportunities` 10 (up to 100). The dropdown lists and `GET /hooks` come whole.
 
 ## Triggers
 
@@ -77,6 +77,26 @@ Each delivery has up to 3 attempts in total (waits of 2 s and 4 s, 10 s timeout 
 - `GET /search/opportunities?title=&contact_id=&email=&phone=&status=open|won|lost|any&pipeline_id=&limit=&page=` returns deals, newest first.
 
 Contacts and deals have the same shape in every route, in the webhook and in the polling list: values in reais (`value`, `estimated_value`, `actual_value`), `email`/`phone`, CRM tags (`tags`: tag names) and the owner (`owner_id`, `owner_name`).
+
+### Reading a list that keeps changing (`cursor`)
+
+Asking for page 2, then page 3, works while the base sits still, and it does not. While your job reads, people create and delete contacts, the queue shifts, and the next page comes back wrong **with no error at all**: a contact created mid-read pushes the queue down so the next page **repeats** what you already had, and a deleted one pulls it up so a contact **disappears** from the read.
+
+So `GET /contacts` and `GET /opportunities` accept `cursor`. Instead of a page number, the response carries `X-Next-Cursor` while there is more; send that value back untouched and the read continues exactly where it stopped. The cursor holds the position (the ordering instant and the id of the last row), so nothing that arrives later shifts it.
+
+```js
+let cursor = null;
+do {
+  const url = new URL("https://api.eroimkt.com.br/v1/api/v1/contacts");
+  url.searchParams.set("limit", "200");
+  if (cursor) url.searchParams.set("cursor", cursor);
+  const r = await fetch(url, { headers: { Authorization: `Bearer ${key}` } });
+  for (const c of await r.json()) save(c);
+  cursor = r.headers.get("X-Next-Cursor"); // absent: you are done
+} while (cursor);
+```
+
+`page` still works and nothing built before needs to change. Use the cursor to walk the whole base, `page` to peek at the first rows. A cursor edited by hand returns `400`. With `cursor`, `page` is ignored.
 
 ### Keeping a copy in sync (`updated_since`)
 
