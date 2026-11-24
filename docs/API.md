@@ -30,7 +30,7 @@ A key can also have an expiry date and a list of allowed IP addresses (set in th
 
 ## Pagination
 
-`GET /contacts`, `GET /opportunities`, `GET /search/opportunities` and `GET /triggers/:event` accept `page` (from 1) together with `limit`. The body is always a JSON array; the page goes in the headers `X-Page`, `X-Per-Page` and, when there is a next page, `X-Next-Page`. Without `page`, the first page is returned. Defaults: `GET /contacts` and `GET /opportunities` 50 (up to 200), `GET /triggers/:event` 25 (up to 100), `GET /search/opportunities` 10 (up to 100). The dropdown lists and `GET /hooks` come whole.
+`GET /contacts` and `GET /opportunities` also accept `cursor`, which is what you want for walking a base that changes while you read it (see below). `GET /contacts`, `GET /opportunities`, `GET /search/opportunities` and `GET /triggers/:event` accept `page` (from 1) together with `limit`. The body is always a JSON array; the page goes in the headers `X-Page`, `X-Per-Page` and, when there is a next page, `X-Next-Page`. Without `page`, the first page is returned. Defaults: `GET /contacts` and `GET /opportunities` 50 (up to 200), `GET /triggers/:event` 25 (up to 100), `GET /search/opportunities` 10 (up to 100). The dropdown lists and `GET /hooks` come whole.
 
 ## Triggers
 
@@ -69,16 +69,59 @@ Each delivery has up to 3 attempts in total (waits of 2 s and 4 s, 10 s timeout 
 
 ## Reading
 
-- `GET /contacts?desde=YYYY-MM-DD&limit=&page=`: contacts, newest first (`desde`: created on or after that day, in Brasília time, UTC-3).
+- `GET /contacts?desde=YYYY-MM-DD&updated_since=&limit=&page=`: contacts, newest first (`desde`: created on or after that day, in Brasília time, UTC-3).
 - `GET /contacts/:id`.
 - `GET /search/contacts?email=&phone=` returns `[]` or `[contact]` (phone in any format).
-- `GET /opportunities?status=&pipeline_id=&desde=&limit=&page=`: deals, newest first, without merged and archived deals (`desde`: created on or after that day, in Brasília time, UTC-3). `status`: `open`, `won`, `lost`, `any` or one of `new`, `contacted`, `qualified`, `proposal_sent`, `negotiating`.
+- `GET /opportunities?status=&pipeline_id=&desde=&updated_since=&limit=&page=`: deals, newest first, without merged and archived deals (`desde`: created on or after that day, in Brasília time, UTC-3). `status`: `open`, `won`, `lost`, `any` or one of `new`, `contacted`, `qualified`, `proposal_sent`, `negotiating`.
 - `GET /opportunities/:id`.
 - `GET /search/opportunities?title=&contact_id=&email=&phone=&status=open|won|lost|any&pipeline_id=&limit=&page=` returns deals, newest first.
 
 Contacts and deals have the same shape in every route, in the webhook and in the polling list: values in reais (`value`, `estimated_value`, `actual_value`), `email`/`phone`, CRM tags (`tags`: tag names) and the owner (`owner_id`, `owner_name`).
 
+### Reading a list that keeps changing (`cursor`)
+
+Asking for page 2, then page 3, works while the base sits still, and it does not. While your job reads, people create and delete contacts, the queue shifts, and the next page comes back wrong **with no error at all**: a contact created mid-read pushes the queue down so the next page **repeats** what you already had, and a deleted one pulls it up so a contact **disappears** from the read.
+
+So `GET /contacts` and `GET /opportunities` accept `cursor`. Instead of a page number, the response carries `X-Next-Cursor` while there is more; send that value back untouched and the read continues exactly where it stopped. The cursor holds the position (the ordering instant and the id of the last row), so nothing that arrives later shifts it.
+
+```js
+let cursor = null;
+do {
+  const url = new URL("https://api.eroimkt.com.br/v1/api/v1/contacts");
+  url.searchParams.set("limit", "200");
+  if (cursor) url.searchParams.set("cursor", cursor);
+  const r = await fetch(url, { headers: { Authorization: `Bearer ${key}` } });
+  for (const c of await r.json()) save(c);
+  cursor = r.headers.get("X-Next-Cursor"); // absent: you are done
+} while (cursor);
+```
+
+`page` still works and nothing built before needs to change. Use the cursor to walk the whole base, `page` to peek at the first rows. A cursor edited by hand returns `400`. With `cursor`, `page` is ignored.
+
+### Keeping a copy in sync (`updated_since`)
+
+`desde` answers "what was created on this day", which is not enough to keep a copy up to date: a webhook delivery that fails leaves that record wrong for good. `updated_since` on `GET /contacts` and `GET /opportunities` answers "what CHANGED since this moment", so a scheduled job can reconcile whatever the webhooks missed.
+
+It takes a day (`2026-11-24`, from the start of that day in Brasília) or an ISO 8601 instant (`2026-11-24T14:30:00-03:00`). Without a written offset the time is read as Brasília time, like `due_at` on a task. With this filter on, the list is ordered by the change, which is the order the sync reads.
+
+A reconciliation pass usually looks like this: store the moment you started, ask for `updated_since=<the moment you stored last time>`, walk the pages, then store the new moment. Overlap by a few minutes to be safe; the records you see twice are the same ones, so applying them again changes nothing.
+
 ## Actions
+
+### Safe retries (`Idempotency-Key`)
+
+Every write route accepts an `Idempotency-Key` header: 8 to 100 characters of letters, digits, hyphen, underscore, dot or colon, one per operation you mean to perform (not one per attempt). Send the same key again and e-roi returns the **stored response** without doing the work twice, so a retry after a timeout cannot create a second deal, a second task or a second note.
+
+The header is optional, so an integration built before this existed keeps working unchanged. Use it anywhere a retry is possible, which in practice is everywhere.
+
+- Same key, same request: the first response, with its original status.
+- Same key, a different request (or a different route): `409 idempotency_key_reused`. A key belongs to one operation.
+- Same key while the first call is still running: `409 idempotency_in_progress`. Try again shortly.
+- A request error (4xx) is stored too, so the retry gets the same error instead of a surprise.
+- An e-roi error (5xx) is **not** stored, so you can retry the same key safely.
+- Keys are kept for 30 days, then released.
+
+The loyalty routes have had this since November 11 and require the key; here it is optional. The key can also travel as `idempotency_key` in the body when a header is inconvenient, and it is never counted as part of the request itself.
 
 | Method and path | Body |
 |---|---|
